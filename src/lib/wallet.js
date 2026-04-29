@@ -1,79 +1,79 @@
 import { BrowserProvider } from 'ethers';
-import { BASE_SEPOLIA_CHAIN_ID_HEX } from './contracts';
 
-const BASE_SEPOLIA_PARAMS = {
-  chainId: BASE_SEPOLIA_CHAIN_ID_HEX,
-  chainName: 'Base Sepolia',
-  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-  rpcUrls: ['https://sepolia.base.org'],
-  blockExplorerUrls: ['https://sepolia.basescan.org']
-};
+export function shortAddress(address) {
+  if (!address) return '';
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
 
-function getProviderByName(name) {
-  if (!window.ethereum) return null;
+export function getProviderByName(name) {
+  if (typeof window === 'undefined' || !window.ethereum) return null;
 
-  const providers = window.ethereum.providers;
-  if (providers && Array.isArray(providers)) {
-    if (name === 'metamask') {
-      return providers.find((p) => p.isMetaMask && !p.isPhantom) || null;
+  const eth = window.ethereum;
+
+  if (name === 'metamask') {
+    if (eth.providers && Array.isArray(eth.providers)) {
+      const mm = eth.providers.find((p) => p.isMetaMask && !p.isPhantom);
+      if (mm) return mm;
     }
-    if (name === 'coinbase') {
-      return providers.find((p) => p.isCoinbaseWallet) || null;
+    if (eth.isMetaMask && !eth.isPhantom) return eth;
+    return null;
+  }
+
+  if (name === 'coinbase') {
+    if (eth.providers && Array.isArray(eth.providers)) {
+      const cb = eth.providers.find((p) => p.isCoinbaseWallet);
+      if (cb) return cb;
     }
+    if (eth.isCoinbaseWallet) return eth;
+    return null;
   }
 
-  // Fallback — only one wallet or old-style injection
-  if (name === 'metamask' && window.ethereum.isMetaMask) return window.ethereum;
-  if (name === 'coinbase' && window.ethereum.isCoinbaseWallet) return window.ethereum;
-
-  return window.ethereum;
+  return eth;
 }
 
-export async function connectMetaMask() {
-  const eth = getProviderByName('metamask');
+export async function connectWallet(walletName, opts = {}) {
+  const { forcePicker = false } = opts;
+  const eth = getProviderByName(walletName);
+
   if (!eth) {
-    throw new Error('Please install MetaMask');
+    throw new Error(
+      walletName === 'metamask'
+        ? 'MetaMask not detected. Install from metamask.io'
+        : 'Coinbase Wallet not detected. Install from coinbase.com/wallet'
+    );
   }
 
-  const accounts = await eth.request({ method: 'eth_requestAccounts' });
-  await ensureBaseSepolia(eth);
-  const provider = new BrowserProvider(eth);
-  const signer = await provider.getSigner();
-  return { provider, signer, address: accounts[0] };
-}
-
-export async function connectCoinbaseWallet() {
-  const eth = getProviderByName('coinbase');
-  if (!eth) {
-    throw new Error('Please install Coinbase Wallet');
-  }
-
-  const accounts = await eth.request({ method: 'eth_requestAccounts' });
-  await ensureBaseSepolia(eth);
-  const provider = new BrowserProvider(eth);
-  const signer = await provider.getSigner();
-  return { provider, signer, address: accounts[0] };
-}
-
-async function ensureBaseSepolia(eth) {
-  try {
-    await eth.request({
-      method: 'wallet_switchEthereumChain',
-      params: [{ chainId: BASE_SEPOLIA_CHAIN_ID_HEX }]
-    });
-  } catch (err) {
-    if (err.code === 4902) {
+  if (forcePicker) {
+    try {
       await eth.request({
-        method: 'wallet_addEthereumChain',
-        params: [BASE_SEPOLIA_PARAMS]
+        method: 'wallet_revokePermissions',
+        params: [{ eth_accounts: {} }]
       });
-    } else {
+    } catch (err) {
+      // wallet_revokePermissions isn't supported in older versions — ignore
+    }
+
+    try {
+      await eth.request({
+        method: 'wallet_requestPermissions',
+        params: [{ eth_accounts: {} }]
+      });
+    } catch (err) {
+      if (err.code === 4001) throw new Error('Wallet selection cancelled');
       throw err;
     }
   }
+
+  const accounts = await eth.request({ method: 'eth_requestAccounts' });
+
+  if (!accounts || accounts.length === 0) {
+    throw new Error('No accounts returned from wallet');
+  }
+
+  const provider = new BrowserProvider(eth);
+  return { provider, address: accounts[0] };
 }
 
-export function shortAddress(addr) {
-  if (!addr) return '';
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+export async function switchAccount(walletName) {
+  return connectWallet(walletName, { forcePicker: true });
 }
