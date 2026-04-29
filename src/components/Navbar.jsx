@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { shortAddress } from '../lib/wallet';
+import { shortAddress, getProviderByName } from '../lib/wallet';
 
 const ADMIN_WALLET = '0x3058d50F1C81BC57A74419F68C56e2638cAA65f9';
 
@@ -30,8 +30,22 @@ export default function Navbar({ address, onConnectClick, onNavigate, onDisconne
     }
   }
 
-  function handleDisconnect() {
+  async function handleDisconnect() {
     setMenuOpen(false);
+
+    // Try to revoke MetaMask permissions so picker shows next time
+    const eth = getProviderByName('metamask');
+    if (eth) {
+      try {
+        await eth.request({
+          method: 'wallet_revokePermissions',
+          params: [{ eth_accounts: {} }]
+        });
+      } catch (err) {
+        // older MetaMask doesn't support — ignore
+      }
+    }
+
     if (onDisconnect) onDisconnect();
   }
 

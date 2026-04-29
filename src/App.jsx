@@ -1,22 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BrowserProvider } from 'ethers';
 import Navbar from './components/Navbar';
 import WalletModal from './components/WalletModal';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import AdminPanel from './pages/AdminPanel';
-
-function getPreferredProvider() {
-  if (typeof window === 'undefined' || !window.ethereum) return null;
-  if (window.ethereum.providers && Array.isArray(window.ethereum.providers)) {
-    return (
-      window.ethereum.providers.find((p) => p.isMetaMask && !p.isPhantom) ||
-      window.ethereum.providers.find((p) => p.isCoinbaseWallet) ||
-      window.ethereum.providers[0]
-    );
-  }
-  return window.ethereum;
-}
+import { getProviderByName } from './lib/wallet';
 
 export default function App() {
   const [page, setPage]           = useState('home');
@@ -24,23 +13,30 @@ export default function App() {
   const [provider, setProvider]   = useState(null);
   const [address, setAddress]     = useState(null);
 
+  const ethRef = useRef(null);
+
   useEffect(() => {
     autoReconnect();
 
-    const eth = getPreferredProvider();
+    const eth = getProviderByName('metamask') || window.ethereum;
+    ethRef.current = eth;
+
     if (eth && eth.on) {
       eth.on('accountsChanged', handleAccountsChanged);
+      eth.on('chainChanged', handleChainChanged);
     }
 
     return () => {
-      if (eth?.removeListener) {
-        eth.removeListener('accountsChanged', handleAccountsChanged);
+      if (ethRef.current?.removeListener) {
+        ethRef.current.removeListener('accountsChanged', handleAccountsChanged);
+        ethRef.current.removeListener('chainChanged', handleChainChanged);
       }
     };
+    // eslint-disable-next-line
   }, []);
 
   async function autoReconnect() {
-    const eth = getPreferredProvider();
+    const eth = getProviderByName('metamask') || window.ethereum;
     if (!eth) return;
     try {
       const accounts = await eth.request({ method: 'eth_accounts' });
@@ -59,8 +55,24 @@ export default function App() {
       setProvider(null);
       setAddress(null);
       setPage('home');
-    } else {
-      setAddress(accounts[0]);
+      return;
+    }
+
+    // Rebuild the provider with the new active account
+    const eth = ethRef.current || getProviderByName('metamask') || window.ethereum;
+    if (eth) {
+      const prov = new BrowserProvider(eth);
+      setProvider(prov);
+    }
+    setAddress(accounts[0]);
+  }
+
+  function handleChainChanged() {
+    // When chain changes, rebuild provider so reads use the new chain
+    const eth = ethRef.current || getProviderByName('metamask') || window.ethereum;
+    if (eth) {
+      const prov = new BrowserProvider(eth);
+      setProvider(prov);
     }
   }
 
@@ -123,7 +135,7 @@ export default function App() {
           <div className="footer-links">
             <a href="https://sepolia.basescan.org" target="_blank" rel="noreferrer">BaseScan</a>
             <a href="https://base.org" target="_blank" rel="noreferrer">Base</a>
-            <a href="#" onClick={(e) => e.preventDefault()}>Twitter</a>
+            <a href="https://x.com/verloonbase" target="_blank" rel="noreferrer">Twitter</a>
           </div>
         </div>
       </footer>
