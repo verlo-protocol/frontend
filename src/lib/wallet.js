@@ -31,7 +31,7 @@ export function getProviderByName(name) {
   return eth;
 }
 
-export async function connectWallet(walletName, opts = {}) {
+async function connect(walletName, opts = {}) {
   const { forcePicker = false } = opts;
   const eth = getProviderByName(walletName);
 
@@ -74,6 +74,18 @@ export async function connectWallet(walletName, opts = {}) {
   return { provider, address: accounts[0] };
 }
 
-export async function switchAccount(walletName) {
-  return connectWallet(walletName, { forcePicker: true });
+export async function connectMetaMask() {
+  return connect('metamask');
+}
+
+export async function connectCoinbaseWallet() {
+  return connect('coinbase');
+}
+
+export async function connectWallet(walletName, opts = {}) {
+  return connect(walletName, opts);
+}
+
+export async function switchAccount(walletName = 'metamask') {
+  return connect(walletName, { forcePicker: true });
 }
