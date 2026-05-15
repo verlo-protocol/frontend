@@ -232,14 +232,32 @@ export default function Dashboard({ provider, address }) {
                 ${asset.price.toFixed(2)}
               </div>
 
-              <button
-                className="btn-buy"
-                onClick={() => setSelectedAsset(asset)}
-                disabled={!isVerified}
-                title={!isVerified ? 'Complete KYC to trade' : ''}
-              >
-                Buy
-              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            className="btn-buy"
+            onClick={() => setSelectedAsset(asset)}
+            disabled={!isVerified}
+            title={!isVerified ? 'Complete KYC to trade' : ''}
+          >
+            Buy
+          </button>
+          <button
+            onClick={() => window.open('https://bankr.bot/terminal', '_blank')}
+            style={{
+              padding: '10px 16px',
+              background: 'white',
+              color: '#0F172A',
+              border: '1px solid #E5E7EB',
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+            title="Trade via Bankr"
+          >
+            via Bankr ↗
+          </button>
+        </div>
             </div>
           ))}
         </div>
